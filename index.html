@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="is">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Grindarreiknir</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap">
+<style>
+/* Layout: teikning efst (blað á borði), svo tvær dálkar — inntak vinstra megin, niðurstöður hægra megin */
+:root {
+  --bg: #eef0f1;
+  --paper: #fbfcfc;
+  --fg: #1d2429;
+  --muted: #5d6a73;
+  --line: #cfd6db;
+  --accent: #1f5f8b;
+  --tension: #1d6fd1;
+  --compression: #c8392e;
+  --zero: #8a959c;
+  --reaction: #2f8a4f;
+  --load: #b5651d;
+  --field: #ffffff;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14191d; --paper: #1b2227; --fg: #e3e8eb; --muted: #95a3ac; --line: #2f3a41;
+    --accent: #6fb0e0; --tension: #5ea5ff; --compression: #ff7a6b; --zero: #6f7c84;
+    --reaction: #5fcf86; --load: #f0a65a; --field: #12171b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14191d; --paper: #1b2227; --fg: #e3e8eb; --muted: #95a3ac; --line: #2f3a41;
+  --accent: #6fb0e0; --tension: #5ea5ff; --compression: #ff7a6b; --zero: #6f7c84;
+  --reaction: #5fcf86; --load: #f0a65a; --field: #12171b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
+h1 { font-family: var(--font-display); font-size: 1.75rem; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+h1 small { font-family: var(--font-body); font-weight: 400; font-size: 0.85rem; color: var(--muted); margin-left: 10px; letter-spacing: 0; }
+h2 { font-family: var(--font-display); font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--paper); color: var(--fg);
+  padding: 6px 12px; border-radius: 4px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+button.primary:hover { color: var(--paper); filter: brightness(1.1); }
+button.icon { padding: 2px 8px; line-height: 1.2; color: var(--muted); }
+
+.sheet { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
+.drawing { position: relative; }
+.drawing-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 18px; height: 3px; display: inline-block; border-radius: 2px; }
+.svgbox { overflow-x: auto; padding: 8px; }
+svg#plot { display: block; width: 100%; min-width: 560px; height: auto; }
+.status { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }
+.pill { font-family: var(--font-mono); font-size: 11.5px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.pill.ok { border-color: var(--reaction); color: var(--reaction); }
+.pill.bad { border-color: var(--compression); color: var(--compression); }
+.pill.warn { border-color: var(--load); color: var(--load); }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.panel { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hint { font-size: 12px; color: var(--muted); margin: 0; max-width: 70ch; }
+.tablebox { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 3px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+td.num { text-align: right; font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
+th.num { text-align: right; }
+input, select, textarea {
+  font: inherit; font-family: var(--font-mono); font-size: 13px; color: var(--fg); background: var(--field);
+  border: 1px solid var(--line); border-radius: 3px; padding: 4px 6px; width: 100%;
+}
+input[type=number] { text-align: right; min-width: 70px; }
+input.name { min-width: 44px; max-width: 64px; text-align: center; font-weight: 500; }
+select { font-family: var(--font-body); min-width: 64px; }
+td.idx { font-family: var(--font-mono); color: var(--muted); font-size: 12px; text-align: center; width: 1%; }
+tr.hl td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.t { color: var(--tension); } .c { color: var(--compression); } .z { color: var(--zero); }
+.tag { font-family: var(--font-body); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.err { color: var(--compression); font-size: 13px; margin: 0; }
+textarea { min-height: 120px; resize: vertical; font-size: 12px; }
+details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+details[open] summary { margin-bottom: 8px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+footer { font-size: 12px; color: var(--muted); max-width: 90ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Grindarreiknir <small>Stangakraftar í tvívíðum grindum · hnútaaðferð</small></h1>
+    <div class="toolbar">
+      <button id="btnExample" type="button">Hlaða dæmi</button>
+      <button id="btnClear" type="button">Hreinsa allt</button>
+    </div>
+  </header>
+
+  <section class="sheet drawing">
+    <div class="drawing-head">
+      <div class="status" id="status"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--tension)"></i>Tog (+)</span>
+        <span><i class="sw" style="background:var(--compression)"></i>Þrýstingur (−)</span>
+        <span><i class="sw" style="background:var(--zero)"></i>Núllstöng</span>
+        <span><i class="sw" style="background:var(--load)"></i>Álag</span>
+        <span><i class="sw" style="background:var(--reaction)"></i>Undirstöðukraftur</span>
+      </div>
+    </div>
+    <div class="svgbox"><svg id="plot" viewBox="0 0 1000 500" role="img" aria-label="Teikning af grind með stangakröftum"></svg></div>
+  </section>
+
+  <div class="cols">
+    <div class="stack">
+      <section class="sheet panel">
+        <div class="panel-head">
+          <h2>Hnútar</h2>
+          <button id="addNode" type="button">+ Bæta við hnút</button>
+        </div>
+        <p class="hint">Hnit í mm. Kraftar í kN: F<sub>x</sub> jákvætt til hægri, F<sub>y</sub> jákvætt upp (niður = mínus).</p>
+        <div class="tablebox">
+          <table>
+            <thead><tr><th>Heiti</th><th class="num">x [mm]</th><th class="num">y [mm]</th><th>Undirstaða</th><th class="num">F<sub>x</sub> [kN]</th><th class="num">F<sub>y</sub> [kN]</th><th></th></tr></thead>
+            <tbody id="nodeBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sheet panel">
+        <div class="panel-head">
+          <h2>Stangir</h2>
+          <button id="addMember" type="button">+ Bæta við stöng</button>
+        </div>
+        <p class="hint">Hver stöng tengir tvo hnúta. Númerið fylgir röðinni í töflunni.</p>
+        <div class="tablebox">
+          <table>
+            <thead><tr><th>Nr.</th><th>Frá</th><th>Til</th><th class="num">Lengd [mm]</th><th></th></tr></thead>
+            <tbody id="memberBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sheet panel">
+        <details>
+          <summary>Vista / sækja gögn (JSON)</summary>
+          <div class="stack" style="gap:8px">
+            <textarea id="json" spellcheck="false" aria-label="Gögn grindar á JSON sniði"></textarea>
+            <div class="row">
+              <button id="btnCopy" type="button">Afrita</button>
+              <button id="btnLoadJson" type="button">Hlaða úr texta</button>
+              <span id="jsonMsg" class="hint"></span>
+            </div>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="sheet panel">
+        <h2>Undirstöðukraftar</h2>
+        <div id="reactOut"></div>
+      </section>
+      <section class="sheet panel">
+        <h2>Stangakraftar</h2>
+        <div class="tablebox" id="forceOut"></div>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    Reiknað með stífnifylkjaaðferð (sama EA í öllum stöngum). Fyrir ákveðnar grindir (m + r = 2j) eru kraftarnir óháðir EA og sömu og úr hnútaaðferðinni.
+    Fyrir óákveðnar grindir gilda niðurstöður aðeins ef allar stangir hafa sama EA. Gögn vistast í vafranum þínum.
+  </footer>
+</div>
+
+<script>
+// ---------- Gögn ----------
+const SUP = {
+  none:  { label: "Engin",            fix: [false, false] },
+  pin:   { label: "Fastlega (x, y)",  fix: [true,  true ] },
+  rolly: { label: "Rúlla (y bundið)", fix: [false, true ] },
+  rollx: { label: "Rúlla (x bundið)", fix: [true,  false] },
+};
+
+let uid = 1;
+const nid = () => "n" + (uid++);
+
+function example() {
+  const N = [
+    ["A",0,0,"pin",0,0],["B",1000,0,"none",0,-20],["C",2000,0,"none",0,0],["D",2750,0,"none",0,0],["E",3500,0,"rolly",0,0],
+    ["F",200,1000,"none",0,0],["G",500,1000,"none",0,0],["H",1000,1000,"none",0,0],["I",1500,1000,"none",0,0],
+    ["J",2000,1500,"none",8,-10],["K",2750,1500,"none",0,0],["L",3200,1500,"none",0,0],
+  ];
+  const nodes = N.map(([name,x,y,sup,fx,fy]) => ({ id: nid(), name, x, y, sup, fx, fy }));
+  const by = Object.fromEntries(nodes.map(n => [n.name, n.id]));
+  const M = ["AB","BC","CD","DE","AF","AG","GB","BH","BI","IC","CJ","JD","DK","KE","FG","GH","HI","IJ","LE","JK","KL"];
+  return { nodes, members: M.map(s => ({ a: by[s[0]], b: by[s[1]] })) };
+}
+
+let state;
+try {
+  const saved = JSON.parse(localStorage.getItem("grindarreiknir.v1") || "null");
+  if (saved && Array.isArray(saved.nodes)) state = fromPlain(saved);
+} catch (e) {}
+if (!state) state = example();
+
+function toPlain() {
+  const nameOf = id => state.nodes.find(n => n.id === id)?.name ?? "";
+  return {
+    nodes: state.nodes.map(({ name, x, y, sup, fx, fy }) => ({ name, x, y, sup, fx, fy })),
+    members: state.members.map(m => [nameOf(m.a), nameOf(m.b)]),
+  };
+}
+function fromPlain(p) {
+  const nodes = p.nodes.map(n => ({
+    id: nid(), name: String(n.name ?? ""), x: +n.x || 0, y: +n.y || 0,
+    sup: SUP[n.sup] ? n.sup : "none", fx: +n.fx || 0, fy: +n.fy || 0,
+  }));
+  const by = {}; nodes.forEach(n => { by[n.name] = n.id; });
+  const members = (p.members || []).map(m => {
+    const [a, b] = Array.isArray(m) ? m : [m.a, m.b];
+    return { a: by[a], b: by[b] };
+  }).filter(m => m.a && m.b);
+  return { nodes, members };
+}
+function save() { try { localStorage.setItem("grindarreiknir.v1", JSON.stringify(toPlain())); } catch (e) {} }
+
+// SOLVER-START
+// Leysir grind með stífnifylkjaaðferð (EA = 1). Skilar stangakröftum (+ = tog) og undirstöðukröftum.
+function solveTruss(nodes, members) {
+  const nN = nodes.length, nM = members.length;
+  const idx = new Map(nodes.map((n, i) => [n.id, i]));
+  const fixes = nodes.map(n => SUP[n.sup].fix);
+  const r = fixes.reduce((s, f) => s + f[0] + f[1], 0);
+  const info = { j: nN, m: nM, r, degree: nM + r - 2 * nN };
+  if (nN < 2 || nM < 1) return { error: "Þarf a.m.k. tvo hnúta og eina stöng.", info };
+
+  const geo = [];
+  for (const m of members) {
+    const i = idx.get(m.a), k = idx.get(m.b);
+    if (i === undefined || k === undefined) return { error: "Stöng vísar í hnút sem er ekki til.", info };
+    if (i === k) return { error: "Stöng getur ekki tengt hnút við sjálfan sig.", info };
+    const dx = nodes[k].x - nodes[i].x, dy = nodes[k].y - nodes[i].y, L = Math.hypot(dx, dy);
+    if (L === 0) return { error: `Hnútar ${nodes[i].name} og ${nodes[k].name} eru á sama stað.`, info };
+    geo.push({ i, k, c: dx / L, s: dy / L, L });
+  }
+
+  // Frjálsar frelsisgráður
+  const map = []; let nf = 0;
+  for (let i = 0; i < nN; i++) for (let d = 0; d < 2; d++) map.push(fixes[i][d] ? -1 : nf++);
+  const K = Array.from({ length: nf }, () => new Float64Array(nf));
+  const F = new Float64Array(nf);
+  nodes.forEach((n, i) => {
+    if (map[2*i] >= 0) F[map[2*i]] += n.fx;
+    if (map[2*i+1] >= 0) F[map[2*i+1]] += n.fy;
+  });
+  for (const g of geo) {
+    const k = 1 / g.L, v = [-g.c, -g.s, g.c, g.s];
+    const dofs = [2*g.i, 2*g.i+1, 2*g.k, 2*g.k+1].map(d => map[d]);
+    for (let a = 0; a < 4; a++) if (dofs[a] >= 0)
+      for (let b = 0; b < 4; b++) if (dofs[b] >= 0) K[dofs[a]][dofs[b]] += k * v[a] * v[b];
+  }
+
+  // Gauss-eyðing með hlutvali
+  const maxDiag = Math.max(1e-300, ...Array.from({ length: nf }, (_, i) => Math.abs(K[i][i])));
+  const tol = maxDiag * 1e-10;
+  const u = new Float64Array(nf), A = K.map(row => Float64Array.from(row)), B = Float64Array.from(F);
+  for (let col = 0; col < nf; col++) {
+    let p = col, best = Math.abs(A[col][col]);
+    for (let rr = col + 1; rr < nf; rr++) if (Math.abs(A[rr][col]) > best) { best = Math.abs(A[rr][col]); p = rr; }
+    if (best < tol) {
+      const dof = map.indexOf(col), n = nodes[Math.floor(dof / 2)];
+      return { error: `Grindin er óstöðug (hreyfanleg). Athugaðu undirstöður og stangir við hnút ${n ? n.name : "?"} (${dof % 2 ? "y" : "x"}-stefna).`, info, unstable: true };
+    }
+    [A[col], A[p]] = [A[p], A[col]]; [B[col], B[p]] = [B[p], B[col]];
+    for (let rr = col + 1; rr < nf; rr++) {
+      const f = A[rr][col] / A[col][col]; if (!f) continue;
+      for (let cc = col; cc < nf; cc++) A[rr][cc] -= f * A[col][cc];
+      B[rr] -= f * B[col];
+    }
+  }
+  for (let rr = nf - 1; rr >= 0; rr--) {
+    let s = B[rr]; for (let cc = rr + 1; cc < nf; cc++) s -= A[rr][cc] * u[cc];
+    u[rr] = s / A[rr][rr];
+  }
+  const disp = d => (map[d] >= 0 ? u[map[d]] : 0);
+
+  const forces = geo.map(g => {
+    const du = (disp(2*g.k) - disp(2*g.i)) * g.c + (disp(2*g.k+1) - disp(2*g.i+1)) * g.s;
+    return du / g.L; // EA = 1
+  });
+  const scale = Math.max(1e-12, ...nodes.map(n => Math.abs(n.fx) + Math.abs(n.fy)));
+  const clean = v => (Math.abs(v) < scale * 1e-9 ? 0 : v);
+
+  // Undirstöðukraftar: R = −(álag + summa stangakrafta sem verka á hnútinn)
+  const sum = nodes.map(n => [n.fx, n.fy]);
+  geo.forEach((g, e) => {
+    const N = forces[e];
+    sum[g.i][0] += N * g.c; sum[g.i][1] += N * g.s;
+    sum[g.k][0] -= N * g.c; sum[g.k][1] -= N * g.s;
+  });
+  const reactions = [];
+  nodes.forEach((n, i) => {
+    if (fixes[i][0] || fixes[i][1]) reactions.push({
+      i, name: n.name,
+      rx: fixes[i][0] ? clean(-sum[i][0]) : null,
+      ry: fixes[i][1] ? clean(-sum[i][1]) : null,
+    });
+  });
+  return { forces: forces.map(clean), lengths: geo.map(g => g.L), reactions, info };
+}
+// SOLVER-END
+
+// ---------- Inntakstöflur ----------
+const $ = s => document.querySelector(s);
+const fmt = (v, d = 2) => (Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d).replace("-", "−");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let highlight = null;
+
+function renderNodes() {
+  $("#nodeBody").innerHTML = state.nodes.map(n => `
+    <tr data-id="${n.id}">
+      <td><input class="name" id="nm-${n.id}" data-k="name" value="${esc(n.name)}" aria-label="Heiti hnúts"></td>
+      <td><input type="number" id="x-${n.id}" data-k="x" value="${n.x}" step="any" aria-label="x hnit ${esc(n.name)}"></td>
+      <td><input type="number" id="y-${n.id}" data-k="y" value="${n.y}" step="any" aria-label="y hnit ${esc(n.name)}"></td>
+      <td><select id="s-${n.id}" data-k="sup" aria-label="Undirstaða ${esc(n.name)}">${Object.entries(SUP).map(([k, v]) =>
+        `<option value="${k}"${k === n.sup ? " selected" : ""}>${v.label}</option>`).join("")}</select></td>
+      <td><input type="number" id="fx-${n.id}" data-k="fx" value="${n.fx}" step="any" aria-label="Fx ${esc(n.name)}"></td>
+      <td><input type="number" id="fy-${n.id}" data-k="fy" value="${n.fy}" step="any" aria-label="Fy ${esc(n.name)}"></td>
+      <td><button class="icon" type="button" data-del="${n.id}" aria-label="Eyða hnút ${esc(n.name)}">×</button></td>
+    </tr>`).join("");
+}
+function renderMembers(lengths) {
+  const opts = sel => state.nodes.map(n => `<option value="${n.id}"${n.id === sel ? " selected" : ""}>${esc(n.name || "?")}</option>`).join("");
+  $("#memberBody").innerHTML = state.members.map((m, e) => `
+    <tr data-e="${e}" class="${highlight === e ? "hl" : ""}">
+      <td class="idx">${e + 1}</td>
+      <td><select id="ma-${e}" data-k="a" aria-label="Upphafshnútur stangar ${e + 1}">${opts(m.a)}</select></td>
+      <td><select id="mb-${e}" data-k="b" aria-label="Endahnútur stangar ${e + 1}">${opts(m.b)}</select></td>
+      <td class="num" data-len="${e}">${lengths && lengths[e] != null ? fmt(lengths[e], 0) : "–"}</td>
+      <td><button class="icon" type="button" data-mdel="${e}" aria-label="Eyða stöng ${e + 1}">×</button></td>
+    </tr>`).join("");
+}
+
+$("#nodeBody").addEventListener("input", ev => {
+  const t = ev.target, tr = t.closest("tr"); if (!tr || !t.dataset.k) return;
+  const n = state.nodes.find(n => n.id === tr.dataset.id); if (!n) return;
+  const k = t.dataset.k;
+  if (k === "name") { n.name = t.value.trim(); renderMembers(); }
+  else if (k === "sup") n.sup = t.value;
+  else { const v = parseFloat(t.value); n[k] = isFinite(v) ? v : 0; }
+  update(false);
+});
+$("#nodeBody").addEventListener("click", ev => {
+  const id = ev.target.dataset.del; if (!id) return;
+  state.nodes = state.nodes.filter(n => n.id !== id);
+  state.members = state.members.filter(m => m.a !== id && m.b !== id);
+  update(true);
+});
+$("#memberBody").addEventListener("change", ev => {
+  const t = ev.target, tr = t.closest("tr"); if (!tr || !t.dataset.k) return;
+  state.members[+tr.dataset.e][t.dataset.k] = t.value;
+  update(false);
+});
+$("#memberBody").addEventListener("click", ev => {
+  const e = ev.target.dataset.mdel; if (e === undefined) return;
+  state.members.splice(+e, 1); highlight = null; update(true);
+});
+$("#addNode").addEventListener("click", () => {
+  const used = new Set(state.nodes.map(n => n.name));
+  let name = ""; for (let i = 0; !name; i++) {
+    const c = i < 26 ? String.fromCharCode(65 + i) : "N" + (i - 25);
+    if (!used.has(c)) name = c;
+  }
+  const last = state.nodes[state.nodes.length - 1];
+  state.nodes.push({ id: nid(), name, x: last ? last.x + 500 : 0, y: last ? last.y : 0, sup: "none", fx: 0, fy: 0 });
+  update(true);
+  document.getElementById("x-" + state.nodes[state.nodes.length - 1].id)?.focus();
+});
+$("#addMember").addEventListener("click", () => {
+  if (state.nodes.length < 2) return;
+  const n = state.nodes;
+  state.members.push({ a: n[n.length - 2].id, b: n[n.length - 1].id });
+  update(true);
+});
+$("#btnExample").addEventListener("click", () => { state = example(); highlight = null; update(true); });
+$("#btnClear").addEventListener("click", () => {
+  state = { nodes: [], members: [] }; highlight = null; update(true);
+});
+$("#btnCopy").addEventListener("click", () => {
+  const ta = $("#json");
+  navigator.clipboard?.writeText(ta.value).then(() => { $("#jsonMsg").textContent = "Afritað."; })
+    .catch(() => { ta.select(); $("#jsonMsg").textContent = "Textinn er valinn. Afritaðu með ⌘C / Ctrl+C."; });
+});
+$("#btnLoadJson").addEventListener("click", () => {
+  try {
+    const p = JSON.parse($("#json").value);
+    if (!p || !Array.isArray(p.nodes)) throw new Error();
+    state = fromPlain(p); highlight = null; update(true);
+    $("#jsonMsg").textContent = "Gögn hlaðin.";
+  } catch (e) { $("#jsonMsg").textContent = "Gat ekki lesið textann. Hann þarf að vera JSON með „nodes“ og „members“."; }
+});
+
+// ---------- Teikning ----------
+const css = v => `var(--${v})`;
+function drawPlot(res) {
+  const svg = $("#plot");
+  const nodes = state.nodes;
+  if (!nodes.length) { svg.setAttribute("viewBox", "0 0 1000 300"); svg.innerHTML = `<text x="500" y="150" text-anchor="middle" fill="${css("muted")}" font-size="16">Engir hnútar. Bættu við hnút eða hlaðu dæminu.</text>`; return; }
+  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const span = Math.max(maxX - minX, maxY - minY, 1);
+  const W = 1000, pad = 90;
+  const s = (W - 2 * pad) / Math.max(maxX - minX, span * 0.25, 1);
+  const H = Math.max(260, (maxY - minY) * s + 2 * pad + 20);
+  const X = x => pad + (x - minX) * s, Y = y => H - pad - (y - minY) * s;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const out = [];
+  out.push(`<defs>
+    <marker id="ahL" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${css("load")}"/></marker>
+    <marker id="ahR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${css("reaction")}"/></marker>
+  </defs>`);
+  const forces = res && res.forces;
+  const maxF = forces ? Math.max(1e-9, ...forces.map(Math.abs)) : 1;
+  const idx = new Map(nodes.map((n, i) => [n.id, i]));
+
+  // Stangir
+  state.members.forEach((m, e) => {
+    const a = nodes[idx.get(m.a)], b = nodes[idx.get(m.b)]; if (!a || !b) return;
+    let col = css("muted"), w = 2.5;
+    if (forces) {
+      const N = forces[e];
+      col = N > 0 ? css("tension") : N < 0 ? css("compression") : css("zero");
+      w = N === 0 ? 1.5 : 2 + 4 * Math.abs(N) / maxF;
+    }
+    const dash = forces && forces[e] === 0 ? ` stroke-dasharray="6 5"` : "";
+    const hl = highlight === e ? `<line x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(b.x)}" y2="${Y(b.y)}" stroke="${css("accent")}" stroke-opacity="0.25" stroke-width="${w + 10}" stroke-linecap="round"/>` : "";
+    out.push(`<g class="mem" data-e="${e}" style="cursor:pointer">${hl}
+      <line x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(b.x)}" y2="${Y(b.y)}" stroke="transparent" stroke-width="14"/>
+      <line x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(b.x)}" y2="${Y(b.y)}" stroke="${col}" stroke-width="${w.toFixed(2)}" stroke-linecap="round"${dash}/></g>`);
+  });
+  // Merki á stöngum
+  state.members.forEach((m, e) => {
+    const a = nodes[idx.get(m.a)], b = nodes[idx.get(m.b)]; if (!a || !b) return;
+    const mx = (X(a.x) + X(b.x)) / 2, my = (Y(a.y) + Y(b.y)) / 2;
+    const txt = forces ? fmt(forces[e], 2) : String(e + 1);
+    const col = forces ? (forces[e] > 0 ? css("tension") : forces[e] < 0 ? css("compression") : css("zero")) : css("muted");
+    const lw = txt.length * 7.4 + (forces ? 26 : 10);
+    out.push(`<g class="mem" data-e="${e}" style="cursor:pointer" font-family="IBM Plex Mono, ui-monospace, monospace">
+      <rect x="${mx - lw / 2}" y="${my - 10}" width="${lw}" height="20" rx="3" fill="${css("paper")}" stroke="${col}" stroke-width="1"/>
+      ${forces ? `<text x="${mx - lw / 2 + 5}" y="${my + 4}" font-size="10" fill="${css("muted")}">${e + 1}</text>` : ""}
+      <text x="${forces ? mx + lw / 2 - 5 : mx}" y="${my + 4.5}" font-size="12.5" text-anchor="${forces ? "end" : "middle"}" fill="${col}" font-weight="500">${txt}</text></g>`);
+  });
+
+  // Undirstöður
+  nodes.forEach(n => {
+    const x = X(n.x), y = Y(n.y), fx = SUP[n.sup].fix;
+    if (!fx[0] && !fx[1]) return;
+    const g = [];
+    if (n.sup === "rollx") {
+      // Rúlla við lóðréttan vegg (x bundið): þríhyrningur til vinstri
+      g.push(`<path d="M${x},${y} L${x - 16},${y - 11} L${x - 16},${y + 11} Z" fill="none" stroke="${css("fg")}" stroke-width="1.5"/>`);
+      g.push(`<circle cx="${x - 20}" cy="${y - 6}" r="3.5" fill="none" stroke="${css("fg")}" stroke-width="1.3"/><circle cx="${x - 20}" cy="${y + 6}" r="3.5" fill="none" stroke="${css("fg")}" stroke-width="1.3"/>`);
+      g.push(`<line x1="${x - 25}" y1="${y - 16}" x2="${x - 25}" y2="${y + 16}" stroke="${css("fg")}" stroke-width="1.5"/>`);
+    } else {
+      g.push(`<path d="M${x},${y} L${x - 11},${y + 16} L${x + 11},${y + 16} Z" fill="none" stroke="${css("fg")}" stroke-width="1.5"/>`);
+      let base = y + 16;
+      if (n.sup === "rolly") {
+        g.push(`<circle cx="${x - 6}" cy="${y + 20}" r="3.5" fill="none" stroke="${css("fg")}" stroke-width="1.3"/><circle cx="${x + 6}" cy="${y + 20}" r="3.5" fill="none" stroke="${css("fg")}" stroke-width="1.3"/>`);
+        base = y + 25;
+      }
+      g.push(`<line x1="${x - 16}" y1="${base}" x2="${x + 16}" y2="${base}" stroke="${css("fg")}" stroke-width="1.5"/>`);
+      for (let k = -14; k <= 10; k += 6) g.push(`<line x1="${x + k}" y1="${base + 6}" x2="${x + k + 5}" y2="${base}" stroke="${css("fg")}" stroke-width="1"/>`);
+    }
+    out.push(g.join(""));
+  });
+
+  // Hnútar
+  nodes.forEach(n => {
+    const x = X(n.x), y = Y(n.y);
+    out.push(`<circle cx="${x}" cy="${y}" r="4.5" fill="${css("paper")}" stroke="${css("fg")}" stroke-width="1.6"/>`);
+    out.push(`<text x="${x + 8}" y="${y - 8}" font-size="14" font-weight="600" fill="${css("fg")}" font-family="IBM Plex Sans, system-ui, sans-serif">${esc(n.name)}</text>`);
+  });
+
+  // Álag og undirstöðukraftar
+  const arrow = (x, y, vx, vy, len, color, marker, label, away) => {
+    // away: örin endar í hnútnum (álag) eða byrjar við hann (undirstöðukraftur ýtir á hnútinn — líka teiknað sem endar í hnút)
+    const L = Math.hypot(vx, vy); if (!L) return;
+    const ux = vx / L, uy = vy / L;
+    const off = away || 6;
+    const x2 = x - ux * off, y2 = y - uy * off, x1 = x2 - ux * len, y1 = y2 - uy * len;
+    out.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2.4" marker-end="url(#${marker})"/>`);
+    const tx = x1 - ux * 6 + (Math.abs(uy) > 0.5 ? 6 : 0), ty = y1 - uy * 6 + (Math.abs(ux) > 0.5 ? -6 : 0);
+    const anchor = Math.abs(uy) > 0.5 ? "start" : ux > 0 ? "end" : "start";
+    out.push(`<text x="${tx}" y="${ty + (uy > 0.5 ? 0 : uy < -0.5 ? 10 : 0)}" font-size="13" font-weight="600" text-anchor="${anchor}" fill="${color}" font-family="IBM Plex Mono, ui-monospace, monospace">${label}</text>`);
+  };
+  nodes.forEach(n => {
+    const x = X(n.x), y = Y(n.y);
+    if (n.fx) arrow(x, y, Math.sign(n.fx), 0, 48, css("load"), "ahL", `${fmt(Math.abs(n.fx), 1)} kN`);
+    if (n.fy) arrow(x, y, 0, -Math.sign(n.fy), 48, css("load"), "ahL", `${fmt(Math.abs(n.fy), 1)} kN`);
+  });
+  if (res && res.reactions) res.reactions.forEach(rc => {
+    const n = nodes[rc.i], x = X(n.x), y = Y(n.y);
+    if (rc.rx) arrow(x, y + (n.sup === "rollx" ? 0 : 0), Math.sign(rc.rx), 0, 44, css("reaction"), "ahR", `${fmt(Math.abs(rc.rx), 2)}`, n.sup === "rollx" ? 30 : 18);
+    if (rc.ry) arrow(x, y, 0, -Math.sign(rc.ry), 40, css("reaction"), "ahR", `${fmt(Math.abs(rc.ry), 2)}`, rc.ry > 0 ? (n.sup === "rolly" ? 34 : 24) : 10);
+  });
+
+  svg.innerHTML = out.join("");
+}
+$("#plot").addEventListener("click", ev => {
+  const g = ev.target.closest(".mem"); if (!g) return;
+  const e = +g.dataset.e; highlight = highlight === e ? null : e; update(false, true);
+});
+
+// ---------- Niðurstöður ----------
+function renderResults(res) {
+  const st = $("#status"), info = res.info;
+  const det = info.degree === 0 ? `<span class="pill ok">Ákveðin: m + r = 2j</span>`
+    : info.degree > 0 ? `<span class="pill warn">Óákveðin, gráða ${info.degree}</span>`
+    : `<span class="pill bad">Of fáar stangir/undirstöður (${info.degree})</span>`;
+  st.innerHTML = `<span class="pill">j = ${info.j}</span><span class="pill">m = ${info.m}</span><span class="pill">r = ${info.r}</span>${det}`;
+
+  if (res.error) {
+    $("#reactOut").innerHTML = `<p class="err">${esc(res.error)}</p>`;
+    $("#forceOut").innerHTML = `<p class="hint">Engar niðurstöður fyrr en grindin er stöðug.</p>`;
+    return;
+  }
+  // Undirstöður
+  let sx = 0, sy = 0;
+  const rows = res.reactions.map(rc => {
+    sx += rc.rx || 0; sy += rc.ry || 0;
+    return `<tr><td><b>${esc(rc.name)}</b></td><td class="num">${rc.rx == null ? "–" : fmt(rc.rx)}</td><td class="num">${rc.ry == null ? "–" : fmt(rc.ry)}</td></tr>`;
+  }).join("");
+  const lx = state.nodes.reduce((s, n) => s + n.fx, 0), ly = state.nodes.reduce((s, n) => s + n.fy, 0);
+  $("#reactOut").innerHTML = `<div class="tablebox"><table>
+    <thead><tr><th>Hnútur</th><th class="num">R<sub>x</sub> [kN]</th><th class="num">R<sub>y</sub> [kN]</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <p class="hint">Jákvætt = til hægri / upp. Athugun: ΣF<sub>x</sub> = ${fmt(sx + lx, 3)}, ΣF<sub>y</sub> = ${fmt(sy + ly, 3)} kN.</p>`;
+
+  // Stangakraftar
+  const nm = id => esc(state.nodes.find(n => n.id === id)?.name ?? "?");
+  const fr = state.members.map((m, e) => {
+    const N = res.forces[e], cls = N > 0 ? "t" : N < 0 ? "c" : "z";
+    const tag = N > 0 ? "Tog" : N < 0 ? "Þrýstingur" : "Núllstöng";
+    return `<tr data-e="${e}" class="${highlight === e ? "hl" : ""}" style="cursor:pointer">
+      <td class="idx">${e + 1}</td><td>${nm(m.a)}–${nm(m.b)}</td>
+      <td class="num">${fmt(res.lengths[e], 0)}</td>
+      <td class="num ${cls}"><b>${fmt(N)}</b></td><td class="${cls} tag">${tag}</td></tr>`;
+  }).join("");
+  $("#forceOut").innerHTML = `<table>
+    <thead><tr><th>Nr.</th><th>Stöng</th><th class="num">L [mm]</th><th class="num">N [kN]</th><th></th></tr></thead>
+    <tbody>${fr}</tbody></table>
+    ${info.degree > 0 ? `<p class="hint">Grindin er óákveðin. Kraftarnir gera ráð fyrir sama EA í öllum stöngum.</p>` : ""}`;
+}
+$("#forceOut").addEventListener("click", ev => {
+  const tr = ev.target.closest("tr[data-e]"); if (!tr) return;
+  const e = +tr.dataset.e; highlight = highlight === e ? null : e; update(false, true);
+});
+
+function update(rebuildInputs, hlOnly) {
+  const res = solveTruss(state.nodes, state.members);
+  if (rebuildInputs) renderNodes();
+  if (rebuildInputs || hlOnly) renderMembers(res.lengths);
+  else if (res.lengths) res.lengths.forEach((L, e) => { const c = document.querySelector(`[data-len="${e}"]`); if (c) c.textContent = fmt(L, 0); });
+  drawPlot(res);
+  renderResults(res);
+  if (!hlOnly) { $("#json").value = JSON.stringify(toPlain(), null, 1); save(); }
+}
+update(true);
+</script>
+</body>
+</html>
